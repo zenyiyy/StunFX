@@ -1,0 +1,19 @@
+# Build output and tool caches
+.gradle/
+build/
+run/
+.idea/
+*.iml
+versions/*/.gradle/
+versions/*/build/
+
+# Raw working files, not part of the mod
+yt-dlp.exe
+*.webm
+black_flash.ogg
+black_flash_vorbis.ogg
+modrinth-icon.png
+
+# Sound files are not published (rights unclear):
+src/main/resources/assets/maseffectsplus/sounds/
+versions/*/src/main/resources/assets/maseffectsplus/sounds/

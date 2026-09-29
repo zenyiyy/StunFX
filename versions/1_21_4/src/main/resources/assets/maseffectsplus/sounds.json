@@ -1,0 +1,15 @@
+{
+  "stunslam.black_flash": {
+    "category": "player",
+    "subtitle": "subtitles.maseffectsplus.black_flash",
+    "sounds": [
+      "maseffectsplus:black_flash"
+    ]
+  },
+  "death.unstable": {
+    "category": "player",
+    "sounds": [
+      "maseffectsplus:unstable_death"
+    ]
+  }
+}

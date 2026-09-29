@@ -1,0 +1,14 @@
+{
+  "required": true,
+  "package": "com.maseffectsplus.mixin",
+  "compatibilityLevel": "JAVA_21",
+  "client": [
+    "ClientPlayNetworkHandlerMixin",
+    "InGameHudMixin",
+    "WorldRendererMixin",
+    "ClientPlayerInteractionManagerMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}
