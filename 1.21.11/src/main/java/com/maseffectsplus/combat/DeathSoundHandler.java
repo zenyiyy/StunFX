@@ -44,7 +44,7 @@ public class DeathSoundHandler {
 
             MinecraftClient client = MinecraftClient.getInstance();
             client.execute(() -> client.getSoundManager().play(
-                    PositionedSoundInstance.ui(DEATH_SOUND, 1.0f, config.deathSoundVolume)));
+                    PositionedSoundInstance.ui(DEATH_SOUND, 1.0f, Math.min(1.0f, config.deathSoundVolume))));
             return true;
         } catch (Throwable t) {
             t.printStackTrace();

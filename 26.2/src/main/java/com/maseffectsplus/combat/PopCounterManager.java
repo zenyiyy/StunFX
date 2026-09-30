@@ -24,15 +24,17 @@ public class PopCounterManager {
 
     private static final Map<String, PopEntry> POP_MAP = new LinkedHashMap<>();
 
-    public static synchronized void recordPop(String playerName) {
-        if (playerName == null || playerName.isEmpty()) return;
+    /** Counts one pop and returns the new total for that player (0 if the name was empty). */
+    public static synchronized int recordPop(String playerName) {
+        if (playerName == null || playerName.isEmpty()) return 0;
         PopEntry entry = POP_MAP.get(playerName);
         if (entry != null) {
             entry.count++;
             entry.lastPopTime = System.currentTimeMillis();
-        } else {
-            POP_MAP.put(playerName, new PopEntry(playerName));
+            return entry.count;
         }
+        POP_MAP.put(playerName, new PopEntry(playerName));
+        return 1;
     }
 
     public static synchronized void resetPlayer(String playerName) {

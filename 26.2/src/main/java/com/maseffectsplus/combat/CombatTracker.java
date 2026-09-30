@@ -4,15 +4,15 @@ import com.maseffectsplus.config.ModConfig;
 import com.maseffectsplus.render.EffectManager;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.resources.sounds.SimpleSoundInstance;
-import net.minecraft.resources.Identifier;
-import net.minecraft.sounds.SoundEvent;
-import net.minecraft.sounds.SoundEvents;
-import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.AxeItem;
 import net.minecraft.world.item.Items;
+import net.minecraft.sounds.SoundSource;
+import net.minecraft.sounds.SoundEvent;
+import net.minecraft.sounds.SoundEvents;
+import net.minecraft.resources.Identifier;
 
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -22,7 +22,22 @@ public class CombatTracker {
     private static final Map<Integer, Long> SHIELD_DISABLED_ENTITIES = new ConcurrentHashMap<>();
     private static final long STUN_WINDOW_MS = 700L; // 0.7s window after the shield break to execute the stun slam
 
+    // After a stunslam the target's shield stays disabled for about 5 seconds (like in the game): no new shield
+    // break, and so no new Black Flash, can happen in that time. This stops axe spam from triggering one every 2nd hit.
+    private static final Map<Integer, Long> STUNSLAM_LOCK = new ConcurrentHashMap<>();
+    private static final long STUNSLAM_LOCK_MS = 5000L;
+    // Right after a predicted shield break by your axe, the next axe swing must not count as another break.
+    private static final Map<Integer, Long> PREDICT_LOCK = new ConcurrentHashMap<>();
+    private static final long PREDICT_LOCK_MS = 1200L;
+
+    private static boolean locked(Map<Integer, Long> map, int entityId) {
+        Long until = map.get(entityId);
+        return until != null && System.currentTimeMillis() < until;
+    }
+
+    /** The server told us a shield was disabled (entity event 30). */
     public static void onShieldDisabled(int entityId) {
+        if (locked(STUNSLAM_LOCK, entityId)) return; // same break that a stunslam already used
         SHIELD_DISABLED_ENTITIES.put(entityId, System.currentTimeMillis());
     }
 
@@ -30,53 +45,63 @@ public class CombatTracker {
         try {
             if (client.player == null || !(target instanceof LivingEntity livingTarget)) return;
 
-            var held = client.player.getMainHandItem().getItem();
+            ModConfig config = ModConfig.get();
+            long now = System.currentTimeMillis();
 
-            // If player hits with an Axe while target is blocking or holding a shield, record shield disabled immediately
-            boolean breakingHit = false;
-            if (held instanceof AxeItem) {
+            // Was the shield already broken a moment ago? (checked before this hit, so the breaking hit itself
+            // never counts as its own follow-up)
+            Long disabledTime = SHIELD_DISABLED_ENTITIES.get(target.getId());
+            boolean shieldRecentlyBroken = disabledTime != null && (now - disabledTime) <= STUN_WINDOW_MS;
+
+            // An axe hit on a shielded target that isn't broken yet breaks the shield: remember it immediately.
+            // If the shield was just broken, an axe is a normal follow-up weapon like any other.
+            if (!shieldRecentlyBroken && !locked(STUNSLAM_LOCK, target.getId()) && !locked(PREDICT_LOCK, target.getId())
+                    && client.player.getMainHandItem().getItem() instanceof AxeItem) {
                 boolean hasShield = livingTarget.isBlocking()
                         || livingTarget.getOffhandItem().getItem() == Items.SHIELD
                         || livingTarget.getMainHandItem().getItem() == Items.SHIELD;
                 if (hasShield) {
-                    onShieldDisabled(target.getId());
-                    breakingHit = true;
+                    SHIELD_DISABLED_ENTITIES.put(target.getId(), now);
+                    PREDICT_LOCK.put(target.getId(), now + PREDICT_LOCK_MS);
+                    // From now on the stunslam has to follow in time, otherwise the combo is lost
+                    ComboTracker.onShieldBrokenByYou();
                 }
             }
 
-            ModConfig config = ModConfig.get();
-            long now = System.currentTimeMillis();
-            Long disabledTime = SHIELD_DISABLED_ENTITIES.get(target.getId());
-
             boolean isStunslam = false;
-            if (disabledTime != null && (now - disabledTime) <= STUN_WINDOW_MS) {
+            if (shieldRecentlyBroken) {
                 if (config.stunslamAnyWeapon) {
-                    // Any weapon mode: the hit right after the shield break counts (not the breaking hit itself)
-                    if (!breakingHit) {
-                        isStunslam = true;
-                        SHIELD_DISABLED_ENTITIES.remove(target.getId());
-                    }
+                    // Any weapon mode: the hit right after the shield break counts, whatever you hold (axe included)
+                    isStunslam = true;
+                    SHIELD_DISABLED_ENTITIES.remove(target.getId());
                 } else {
                     // Mace mode: only a real smash counts: holding the mace AND falling (> 1.5 blocks of fall distance)
                     // or flying with an elytra (elytra mace). A plain hit on the ground never triggers a Black Flash.
-                    boolean smash = client.player.fallDistance > 1.5 || client.player.isFallFlying();
-                    if (held == Items.MACE && smash) {
+                    boolean smash = client.player.fallDistance > 1.5f || client.player.isFallFlying();
+                    if (client.player.getMainHandItem().getItem() == Items.MACE && smash) {
                         isStunslam = true;
                         SHIELD_DISABLED_ENTITIES.remove(target.getId());
                     }
                 }
+            }
+
+            // The follow-up after your shield break wasn't a valid stunslam (e.g. a mace hit without a smash): combo lost
+            if (shieldRecentlyBroken && !isStunslam && ComboTracker.hasAttempt()) {
+                ComboTracker.fail();
             }
 
             if (!config.effectsEnabled) return;
 
             if (isStunslam && config.stunslam.enabled) {
                 // Trigger Jujutsu Kaisen Black Flash Stunslam!
+                STUNSLAM_LOCK.put(target.getId(), now + STUNSLAM_LOCK_MS);
+                ComboTracker.onStunslam();
                 EffectManager.spawnEffect(config.stunslam, target);
                 if (config.stunslam.soundEnabled) {
-                    playCustomSound(Identifier.fromNamespaceAndPath("maseffectsplus", "stunslam.black_flash"),
-                            config.stunslam.volume * 2.0f, config.stunslam.pitch);
+                    playCustomSound(Identifier.fromNamespaceAndPath("maseffectsplus", "stunslam.black_flash"), config.stunslam.volume * 2.0f, config.stunslam.pitch);
                 }
-            } else if (held == Items.MACE && config.bigDamage.enabled) {
+            } else if (client.player.getMainHandItem().getItem() == Items.MACE && config.bigDamage.enabled) {
+                // Any Mace hit spawns bigDamage Mace effect and sound!
                 // Plain mace hit: visual only, the Black Flash sound is reserved for a real stunslam
                 EffectManager.spawnEffect(config.bigDamage, target);
             }
@@ -132,13 +157,42 @@ public class CombatTracker {
     }
 
     public static void playCustomSound(Identifier id, float volume, float pitch) {
-        // 1. Instant playback from a pre-opened clip (no loading, no thread spawn)
-        if (playPreloaded(volume)) return;
+        // 1. Instant playback from a pre-opened clip (no loading, no thread spawn). The clip can't change pitch,
+        //    so a different pitch (e.g. the deeper finisher sound) goes through Minecraft's sound engine below.
+        if (Math.abs(pitch - 1.0f) < 0.16f && playPreloaded(volume)) return;
 
         // 2. Fallback: Minecraft SoundManager (only if the preloaded clip is unavailable)
         try {
             Minecraft client = Minecraft.getInstance();
-            client.getSoundManager().play(SimpleSoundInstance.forUI(SoundEvent.createVariableRangeEvent(id), pitch, volume));
+            SoundEvent sound = SoundEvent.createVariableRangeEvent(id);
+
+            // Find method on SimpleSoundInstance that creates an instance:
+            SimpleSoundInstance instance = null;
+            for (java.lang.reflect.Method m : SimpleSoundInstance.class.getMethods()) {
+                if (java.lang.reflect.Modifier.isStatic(m.getModifiers()) && SimpleSoundInstance.class.isAssignableFrom(m.getReturnType())) {
+                    Class<?>[] params = m.getParameterTypes();
+                    if (params.length == 3 && params[0].isAssignableFrom(SoundEvent.class) && params[1] == float.class && params[2] == float.class) {
+                        m.setAccessible(true);
+                        instance = (SimpleSoundInstance) m.invoke(null, sound, pitch, volume);
+                        break;
+                    }
+                }
+            }
+            if (instance == null) {
+                for (java.lang.reflect.Method m : SimpleSoundInstance.class.getMethods()) {
+                    if (java.lang.reflect.Modifier.isStatic(m.getModifiers()) && SimpleSoundInstance.class.isAssignableFrom(m.getReturnType())) {
+                        Class<?>[] params = m.getParameterTypes();
+                        if (params.length == 2 && params[0].isAssignableFrom(SoundEvent.class) && params[1] == float.class) {
+                            m.setAccessible(true);
+                            instance = (SimpleSoundInstance) m.invoke(null, sound, pitch);
+                            break;
+                        }
+                    }
+                }
+            }
+            if (instance != null) {
+                client.getSoundManager().play(instance);
+            }
         } catch (Throwable t) {
             t.printStackTrace();
         }
@@ -162,22 +216,18 @@ public class CombatTracker {
 
             ModConfig config = ModConfig.get();
             if (entity instanceof Player player) {
-                PopCounterManager.recordPop(player.getName().getString());
+                int pops = PopCounterManager.recordPop(player.getName().getString());
+                // Optional counter "ding": rises in pitch with every pop of the same player
+                if (config.popCounterEnabled && config.popCounterSound && pops > 0) {
+                    float pitch = 0.8f + 0.12f * Math.min(pops - 1, 6);
+                    client.getSoundManager().play(SimpleSoundInstance.forUI(
+                            SoundEvents.EXPERIENCE_ORB_PICKUP, pitch, config.popCounterSoundVolume));
+                }
             }
 
             if (config.effectsEnabled && config.totemPop.enabled) {
+                // Visual only: Minecraft already plays the totem sound itself
                 EffectManager.spawnEffect(config.totemPop, entity);
-
-                if (config.totemPop.soundEnabled && client.level != null) {
-                    client.level.playLocalSound(
-                        entity.getX(), entity.getY(), entity.getZ(),
-                        SoundEvents.TOTEM_USE,
-                        SoundSource.PLAYERS,
-                        config.totemPop.volume,
-                        config.totemPop.pitch,
-                        false
-                    );
-                }
             }
         } catch (Throwable t) {
             t.printStackTrace();
@@ -193,49 +243,24 @@ public class CombatTracker {
             ModConfig config = ModConfig.get();
             if (distSq > config.range * config.range) return;
 
+            if (entity == client.player) {
+                ComboTracker.reset(); // your own death ends the combo
+            }
             if (entity instanceof Player player) {
                 PopCounterManager.resetPlayer(player.getName().getString());
+                // Player died nearby: play the death sound (a chat death message for the same death is deduplicated)
+                DeathSoundHandler.play(false);
             }
 
-            if (config.effectsEnabled && config.kill.enabled) {
+            // Mob deaths only count when "effects on mobs" is on (PvP focus: players always count)
+            boolean countsAsKill = entity instanceof Player || config.onMobs;
+            if (countsAsKill && config.effectsEnabled && config.kill.enabled) {
+                // Visual only: no extra sound (the optional death sound is a separate setting)
                 EffectManager.spawnEffect(config.kill, entity);
-
-                // Play configurable kill / death sound (can be toggled in GUI)
-                if (config.kill.soundEnabled && client.level != null) {
-                    client.level.playLocalSound(
-                        entity.getX(), entity.getY(), entity.getZ(),
-                        SoundEvents.EXPERIENCE_ORB_PICKUP,
-                        SoundSource.PLAYERS,
-                        config.kill.volume * 1.5f,
-                        config.kill.pitch * 0.7f,
-                        false
-                    );
-                    client.level.playLocalSound(
-                        entity.getX(), entity.getY(), entity.getZ(),
-                        SoundEvents.ANVIL_LAND,
-                        SoundSource.PLAYERS,
-                        config.kill.volume * 0.8f,
-                        config.kill.pitch * 1.4f,
-                        false
-                    );
-                }
             }
         } catch (Throwable t) {
             t.printStackTrace();
         }
     }
 
-    public static void onDamageTaken(Entity entity) {
-        try {
-            Minecraft client = Minecraft.getInstance();
-            if (entity == client.player) {
-                ModConfig config = ModConfig.get();
-                if (config.effectsEnabled && config.damageTaken.enabled) {
-                    EffectManager.spawnEffect(config.damageTaken, entity);
-                }
-            }
-        } catch (Throwable t) {
-            t.printStackTrace();
-        }
-    }
 }

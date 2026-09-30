@@ -13,5 +13,6 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 public class InGameHudMixin {
     @Inject(method = "render", at = @At("TAIL"))
     private void onRenderHud(DrawContext context, RenderTickCounter tickCounter, CallbackInfo ci) {
-        PopCounterHud.render(context, tickCounter);    }
+        PopCounterHud.render(context, tickCounter);
+        com.maseffectsplus.hud.ComboHud.render(context, tickCounter);    }
 }

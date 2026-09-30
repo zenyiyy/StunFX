@@ -69,6 +69,17 @@ public class MainConfigScreen extends Screen {
         this.addDrawableChild(edit);
     }
 
+    /** Same look as the effect rows: an ON/OFF toggle with a small "Edit" button that opens a settings screen. */
+    private void toggleWithScreen(int col, int row, String name, String description, String editTooltip,
+                                  BooleanSupplier get, Consumer<Boolean> set, Supplier<Screen> screen) {
+        this.addDrawableChild(toggle(col, row, W - 40, name, description, get, set));
+        ButtonWidget edit = ButtonWidget.builder(Text.literal("Edit"), btn -> this.client.setScreen(screen.get()))
+                .dimensions(colX(col) + W - 36, rowY(row), 36, H)
+                .build();
+        edit.setTooltip(Tooltip.of(Text.literal(editTooltip)));
+        this.addDrawableChild(edit);
+    }
+
     @Override
     protected void init() {
         ModConfig config = ModConfig.get();
@@ -88,16 +99,16 @@ public class MainConfigScreen extends Screen {
                 () -> config.onMobs, v -> config.onMobs = v));
 
         // --- Counter and sound ---
-        this.addDrawableChild(toggle(1, 0, W, "Pop counter", "Shows how many totems nearby players have popped.",
-                () -> config.popCounterEnabled, v -> config.popCounterEnabled = v));
-        ButtonWidget counterSettings = ButtonWidget.builder(Text.literal("Pop counter settings..."),
-                        btn -> this.client.setScreen(new PopCounterScreen(this)))
-                .dimensions(colX(1), rowY(1), W, H).build();
-        counterSettings.setTooltip(Tooltip.of(Text.literal("Position, size, sound and reset of the pop counter.")));
-        this.addDrawableChild(counterSettings);
-        this.addDrawableChild(toggle(1, 2, W, "Death sound", "Plays a sound whenever a death message appears in chat.",
+        toggleWithScreen(1, 0, "Pop counter", "Shows how many totems nearby players have popped.",
+                "Position, size, sound and reset.",
+                () -> config.popCounterEnabled, v -> config.popCounterEnabled = v, () -> new PopCounterScreen(this));
+        toggleWithScreen(1, 1, "Stunslam combo", "Shows how many stunslams in a row you landed (x2, x3, ...).\nIt only ends when you fail a stunslam or die.",
+                "Size, position and display time.",
+                () -> config.comboCounterEnabled, v -> config.comboCounterEnabled = v, () -> new ComboScreen(this));
+        this.addDrawableChild(toggle(1, 2, W, "Death sound", "Plays a sound whenever a player dies.",
                 () -> config.deathSoundEnabled, v -> config.deathSoundEnabled = v));
-        this.addDrawableChild(new CustomSliderWidget(colX(1), rowY(3), W, H, 0, 200, config.deathSoundVolume * 100,
+        // Minecraft caps a sound at 100%, so the slider stops there (the sound file itself is already loud)
+        this.addDrawableChild(new CustomSliderWidget(colX(1), rowY(3), W, H, 0, 100, Math.min(1.0f, config.deathSoundVolume) * 100,
                 v -> { config.deathSoundVolume = (float) (v / 100.0); ModConfig.save(); },
                 v -> Text.literal("Death volume: " + Math.round(v) + "%")));
 

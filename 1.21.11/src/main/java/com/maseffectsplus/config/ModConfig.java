@@ -21,8 +21,17 @@ public class ModConfig {
     public boolean onMobs = true;
     public boolean popCounterEnabled = true;
 
+    // "STUNSLAM COMBO x3" on screen when you land stunslams in a row
+    public boolean comboCounterEnabled = true;
+    public int comboWindowSeconds = 6; // how long the combo number stays on screen after a stunslam
+    public int comboX = 50;            // horizontal centre of the combo display in % of the screen width
+    public int comboY = 62;            // vertical position in % of the screen height
+    public float comboScale = 1.0f;    // size of the combo display
+
     // Pop counter layout: corner 0 = top right, 1 = top left, 2 = bottom right, 3 = bottom left
-    public int popCorner = 0;
+    public int popCorner = -1; // legacy setting, converted to popPosX / popPosY on load
+    public int popPosX = 100;  // 0 = left edge, 100 = right edge (position of the counter box, in %)
+    public int popPosY = 0;    // 0 = top edge, 100 = bottom edge
     public float popScale = 1.0f;
     public boolean popCounterSound = false;
     public float popCounterSoundVolume = 0.8f;
@@ -82,7 +91,17 @@ public class ModConfig {
         bigDamage.style = EffectStyle.RING;
         totemPop.style = EffectStyle.SHOCKWAVE;
         kill.style = EffectStyle.DOME;
-        popCorner = Math.max(0, Math.min(3, popCorner));
+        comboWindowSeconds = Math.max(2, Math.min(15, comboWindowSeconds == 0 ? 6 : comboWindowSeconds));
+        comboX = Math.max(0, Math.min(100, comboX));
+        comboY = Math.max(0, Math.min(100, comboY));
+        if (comboScale < 0.5f || comboScale > 3.0f) comboScale = 1.0f;
+        if (popCorner >= 0) { // older configs stored a corner: 0 top right, 1 top left, 2 bottom right, 3 bottom left
+            popPosX = (popCorner == 0 || popCorner == 2) ? 100 : 0;
+            popPosY = popCorner >= 2 ? 100 : 0;
+            popCorner = -1;
+        }
+        popPosX = Math.max(0, Math.min(100, popPosX));
+        popPosY = Math.max(0, Math.min(100, popPosY));
         if (popScale < 0.5f || popScale > 3.0f) popScale = 1.0f;
         if (totemPop == null) totemPop = EffectConfig.createDefaultTotemPop();
         if (bigDamage == null) bigDamage = EffectConfig.createDefaultBigDamage();

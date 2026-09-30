@@ -1,6 +1,7 @@
 package com.maseffectsplus;
 
 import com.maseffectsplus.combat.CombatTracker;
+import com.maseffectsplus.combat.ComboTracker;
 import com.maseffectsplus.combat.DeathSoundHandler;
 import com.maseffectsplus.combat.PopCounterManager;
 import com.maseffectsplus.config.ModConfig;
@@ -84,6 +85,7 @@ public class MasEffectsClient implements ClientModInitializer {
 
     private static void testStunslam(MinecraftClient client) {
         ModConfig config = ModConfig.get();
+        ComboTracker.onStunslam(); // so the combo counter can be tried out: run the test several times quickly
         EffectManager.spawnPreviewEffect(config.stunslam);
         if (config.stunslam.soundEnabled) {
             CombatTracker.playCustomSound(Identifier.of(MOD_ID, "stunslam.black_flash"),
@@ -150,7 +152,10 @@ public class MasEffectsClient implements ClientModInitializer {
         ClientReceiveMessageEvents.GAME.register(DeathSoundHandler::onGameMessage);
 
         // Fresh pop counter for every server / world
-        ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> PopCounterManager.clearAll());
+        ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> {
+            PopCounterManager.clearAll();
+            ComboTracker.reset();
+        });
 
         // Key binds (Options > Controls > MasEffects+)
         openConfigKey = register("key.maseffectsplus.open_gui", GLFW.GLFW_KEY_RIGHT_SHIFT);
@@ -245,6 +250,7 @@ public class MasEffectsClient implements ClientModInitializer {
             }
 
             runDelayedTasks();
+            ComboTracker.tick(); // a shield break without a stunslam in time ends the combo
 
             try {
                 EffectManager.tick();

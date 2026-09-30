@@ -95,6 +95,10 @@ public class EffectManager {
         return new ArrayList<>(ACTIVE_EFFECTS);
     }
 
+    public static synchronized int activeCount() {
+        return ACTIVE_EFFECTS.size();
+    }
+
     public static synchronized void clear() {
         ACTIVE_EFFECTS.clear();
     }

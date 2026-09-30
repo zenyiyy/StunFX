@@ -2,16 +2,21 @@ package com.maseffectsplus.hud;
 
 import com.maseffectsplus.combat.PopCounterManager;
 import com.maseffectsplus.config.ModConfig;
-import net.fabricmc.fabric.api.client.rendering.v1.hud.HudElement;
-import net.minecraft.client.DeltaTracker;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.minecraft.client.DeltaTracker;
 
 import java.util.List;
 
-public class PopCounterHud implements HudElement {
+public class PopCounterHud implements net.fabricmc.fabric.api.client.rendering.v1.hud.HudElement {
     private static final int MAX_LINES = 8;
+    public static final int EDGE = 6; // distance to the screen edge
+
+    /** Set by the move screen: draw the counter even if it is switched off, so it can be placed. */
+    public static volatile boolean previewing = false;
+    /** Last drawn box {x, y, width, height} in scaled GUI pixels (used by the move screen for dragging). */
+    public static volatile float[] lastRect = null;
     private static final long HIGHLIGHT_MS = 1500L;
 
     /** Pop count -> colour: yellow (1), orange (2), red (3+). */
@@ -23,9 +28,13 @@ public class PopCounterHud implements HudElement {
 
     @Override
     public void extractRenderState(GuiGraphicsExtractor context, DeltaTracker deltaTracker) {
+        render(context, deltaTracker);
+    }
+
+    public static void render(GuiGraphicsExtractor context, DeltaTracker tickCounter) {
         try {
             ModConfig config = ModConfig.get();
-            if (!config.effectsEnabled || !config.popCounterEnabled) return;
+            if (!previewing && (!config.effectsEnabled || !config.popCounterEnabled)) return;
 
             Minecraft client = Minecraft.getInstance();
 
@@ -59,9 +68,23 @@ public class PopCounterHud implements HudElement {
             int lineH = 10;
             int boxW = contentW + pad * 2;
             int boxH = pad * 2 + 12 + shown * lineH + (more != null || empty != null ? lineH : 0);
-            int screenW = client.getWindow().getGuiScaledWidth();
-            int boxX = screenW - boxW - 6;
-            int boxY = 6;
+            // Position: chosen corner + offsets, scaled with the size setting
+            float s = config.popScale;
+            int screenW = context.guiWidth();
+            int screenH = context.guiHeight();
+            float scaledW = boxW * s;
+            float scaledH = boxH * s;
+            // popPosX / popPosY are percentages between the screen edges (with a small margin), so the box always
+            // stays on screen whatever its size is
+            float px = EDGE + Math.max(0.0f, screenW - scaledW - 2 * EDGE) * config.popPosX / 100.0f;
+            float py = EDGE + Math.max(0.0f, screenH - scaledH - 2 * EDGE) * config.popPosY / 100.0f;
+            lastRect = new float[]{px, py, scaledW, scaledH};
+            context.pose().pushMatrix();
+            try {
+            context.pose().translate(px, py);
+            context.pose().scale(s, s);
+            int boxX = 0;
+            int boxY = 0;
 
             // Readable background with a thin gold accent on the left
             context.fill(boxX, boxY, boxX + boxW, boxY + boxH, 0x88000000);
@@ -90,6 +113,9 @@ public class PopCounterHud implements HudElement {
                 context.text(tr, more, textX, y, 0xFF888888, true);
             } else if (empty != null) {
                 context.text(tr, empty, textX, y, 0xFF888888, true);
+            }
+            } finally {
+                context.pose().popMatrix();
             }
         } catch (Throwable t) {
             // Never crash the HUD loop

@@ -15,6 +15,7 @@ public class EffectConfig {
     public float spin = 40.0f; // degrees/sec
     public boolean followTarget = true;
     public float scale = 1.0f; // overall size multiplier (Black Flash: 1.0 = default size)
+    public float density = 1.0f; // Black Flash: amount of tendrils / debris (1.0 = full, lower = fewer, saves FPS)
 
     // --- Colour Tab ---
     public float red = 1.0f;
@@ -54,14 +55,14 @@ public class EffectConfig {
         c.followTarget = true;
 
         // JJK Black Flash Colors: Pitch Black Core & Crimson Red Energy
-        c.red = 0.05f;
+        c.red = 0.03f;
         c.green = 0.0f;
-        c.blue = 0.02f;
+        c.blue = 0.04f;
         c.alpha = 0.95f;
 
-        c.secondaryRed = 0.95f;
+        c.secondaryRed = 1.0f;
         c.secondaryGreen = 0.05f;
-        c.secondaryBlue = 0.15f;
+        c.secondaryBlue = 0.10f;
 
         c.durationTicks = 25;
         c.soundEnabled = true;
@@ -153,32 +154,6 @@ public class EffectConfig {
         c.soundType = "DEATH";
         c.volume = 1.0f;
         c.pitch = 0.9f;
-        return c;
-    }
-
-    public static EffectConfig createDefaultDamageTaken() {
-        EffectConfig c = new EffectConfig();
-        c.enabled = true;
-        c.style = EffectStyle.PILLAR;
-        c.startRadius = 0.40f;
-        c.endRadius = 1.40f;
-        c.thickness = 0.18f;
-        c.height = 2.00f;
-        c.heightOffset = 0.05f;
-        c.corners = 48;
-        c.rings = 3;
-        c.spin = 40.0f;
-        c.followTarget = true;
-
-        c.red = 1.0f;
-        c.green = 0.15f;
-        c.blue = 0.15f;
-        c.alpha = 0.75f;
-
-        c.durationTicks = 15;
-        c.soundEnabled = false;
-        c.volume = 0.8f;
-        c.pitch = 1.0f;
         return c;
     }
 }

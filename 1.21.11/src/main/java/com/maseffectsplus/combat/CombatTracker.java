@@ -21,7 +21,23 @@ public class CombatTracker {
     // Maps entityId -> timestamp when shield was disabled
     private static final Map<Integer, Long> SHIELD_DISABLED_ENTITIES = new ConcurrentHashMap<>();
     private static final long STUN_WINDOW_MS = 700L; // 0.7s window after the shield break to execute the stun slam
+
+    // After a stunslam the target's shield stays disabled for about 5 seconds (like in the game): no new shield
+    // break, and so no new Black Flash, can happen in that time. This stops axe spam from triggering one every 2nd hit.
+    private static final Map<Integer, Long> STUNSLAM_LOCK = new ConcurrentHashMap<>();
+    private static final long STUNSLAM_LOCK_MS = 5000L;
+    // Right after a predicted shield break by your axe, the next axe swing must not count as another break.
+    private static final Map<Integer, Long> PREDICT_LOCK = new ConcurrentHashMap<>();
+    private static final long PREDICT_LOCK_MS = 1200L;
+
+    private static boolean locked(Map<Integer, Long> map, int entityId) {
+        Long until = map.get(entityId);
+        return until != null && System.currentTimeMillis() < until;
+    }
+
+    /** The server told us a shield was disabled (entity event 30). */
     public static void onShieldDisabled(int entityId) {
+        if (locked(STUNSLAM_LOCK, entityId)) return; // same break that a stunslam already used
         SHIELD_DISABLED_ENTITIES.put(entityId, System.currentTimeMillis());
     }
 
@@ -39,12 +55,16 @@ public class CombatTracker {
 
             // An axe hit on a shielded target that isn't broken yet breaks the shield: remember it immediately.
             // If the shield was just broken, an axe is a normal follow-up weapon like any other.
-            if (!shieldRecentlyBroken && client.player.getMainHandStack().getItem() instanceof AxeItem) {
+            if (!shieldRecentlyBroken && !locked(STUNSLAM_LOCK, target.getId()) && !locked(PREDICT_LOCK, target.getId())
+                    && client.player.getMainHandStack().getItem() instanceof AxeItem) {
                 boolean hasShield = livingTarget.isBlocking()
                         || livingTarget.getOffHandStack().isOf(Items.SHIELD)
                         || livingTarget.getMainHandStack().isOf(Items.SHIELD);
                 if (hasShield) {
-                    onShieldDisabled(target.getId());
+                    SHIELD_DISABLED_ENTITIES.put(target.getId(), now);
+                    PREDICT_LOCK.put(target.getId(), now + PREDICT_LOCK_MS);
+                    // From now on the stunslam has to follow in time, otherwise the combo is lost
+                    ComboTracker.onShieldBrokenByYou();
                 }
             }
 
@@ -65,10 +85,17 @@ public class CombatTracker {
                 }
             }
 
+            // The follow-up after your shield break wasn't a valid stunslam (e.g. a mace hit without a smash): combo lost
+            if (shieldRecentlyBroken && !isStunslam && ComboTracker.hasAttempt()) {
+                ComboTracker.fail();
+            }
+
             if (!config.effectsEnabled) return;
 
             if (isStunslam && config.stunslam.enabled) {
                 // Trigger Jujutsu Kaisen Black Flash Stunslam!
+                STUNSLAM_LOCK.put(target.getId(), now + STUNSLAM_LOCK_MS);
+                ComboTracker.onStunslam();
                 EffectManager.spawnEffect(config.stunslam, target);
                 if (config.stunslam.soundEnabled) {
                     playCustomSound(Identifier.of("maseffectsplus", "stunslam.black_flash"), config.stunslam.volume * 2.0f, config.stunslam.pitch);
@@ -216,6 +243,9 @@ public class CombatTracker {
             ModConfig config = ModConfig.get();
             if (distSq > config.range * config.range) return;
 
+            if (entity == client.player) {
+                ComboTracker.reset(); // your own death ends the combo
+            }
             if (entity instanceof PlayerEntity player) {
                 PopCounterManager.resetPlayer(player.getName().getString());
                 // Player died nearby: play the death sound (a chat death message for the same death is deduplicated)

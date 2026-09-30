@@ -373,12 +373,12 @@ public class EffectRenderer {
     }
 
     private static void drawTendril(Matrix4f m, VertexConsumer c, float[][] pts, float grow, float a, float w,
-                                    float cx, float cy, float cz, float L) {
+                                    float cx, float cy, float cz, float L, float[] edge, float[] core) {
         int visible = (int) Math.ceil(pts.length * grow);
         if (visible < 2 || a <= 0.0f) return;
-        ribbon(m, c, pts, visible, w * 3.0f + 0.03f, cx, cy, cz, L * 4, 1.0f, 0.0f, 0.10f, 0.12f * a, true);  // soft red glow
-        ribbon(m, c, pts, visible, w * 1.5f + 0.015f, cx, cy, cz, L * 5, 1.0f, 0.05f, 0.10f, a, true);       // red outline
-        ribbon(m, c, pts, visible, w, cx, cy, cz, L * 6, 0.03f, 0.0f, 0.04f, a, true);                       // black core
+        ribbon(m, c, pts, visible, w * 3.0f + 0.03f, cx, cy, cz, L * 4, edge[0], edge[1], edge[2], 0.12f * a, true);  // soft glow
+        ribbon(m, c, pts, visible, w * 1.5f + 0.015f, cx, cy, cz, L * 5, edge[0], edge[1], edge[2], a, true);        // outline
+        ribbon(m, c, pts, visible, w, cx, cy, cz, L * 6, core[0], core[1], core[2], a, true);                        // dark core
     }
 
     private static void renderBlackFlash(Matrix4f m, VertexConsumer c, ActiveEffect effect, float tickDelta, float alpha,
@@ -386,6 +386,15 @@ public class EffectRenderer {
         float t = effect.age + tickDelta; // effect time in ticks
         Random rng = new Random(System.identityHashCode(effect) * 31L + 7L);
         float ox = 0.0f, oy = 0.6f, oz = 0.0f; // impact center, roughly chest height
+
+        // Colours come from the effect settings (presets just change these); density saves FPS
+        EffectConfig cfg = effect.config;
+        float[] core = {cfg.red, cfg.green, cfg.blue};
+        float[] edge = {cfg.secondaryRed, cfg.secondaryGreen, cfg.secondaryBlue};
+        float dens = Math.max(0.2f, Math.min(1.0f, cfg.density));
+        if (EffectManager.activeCount() > 6) dens *= 0.6f; // crowded fight: automatically draw less
+        int shardCount = Math.max(2, Math.round(8 * dens));
+        int debrisCount = Math.max(6, Math.round(36 * dens));
 
         float dist = (float) Math.sqrt(cx * cx + cy * cy + cz * cz);
         float L = 0.004f * Math.max(1.0f, dist * 0.3f); // z-fight lift unit, grows with distance
@@ -401,7 +410,7 @@ public class EffectRenderer {
 
         // Black tendrils with glowing red outline (they linger after the flash),
         // radiating from the player, each with thorn-like side branches (like the manga panel)
-        int majors = 14;
+        int majors = Math.max(3, Math.round(14 * dens));
         float boltA = (t < 14.0f ? 1.0f : Math.max(0.0f, 1.0f - (t - 14.0f) / 10.0f)) * alpha;
         float boltGrow = Math.min(1.0f, Math.max(0.0f, (t - 0.3f) / 2.5f));
         for (int i = 0; i < majors; i++) {
@@ -416,9 +425,9 @@ public class EffectRenderer {
             float[] hd = norm(d0[0], 0.0f, d0[2]);
             float rootY = -0.15f + rng.nextFloat() * 1.2f;
             float[][] main = boltFrom(rng, hd[0] * 0.12f, rootY, hd[2] * 0.12f, d0, len, 12, 1.5f);
-            drawTendril(m, c, main, boltGrow, boltA, w, cx, cy, cz, L);
+            drawTendril(m, c, main, boltGrow, boltA, w, cx, cy, cz, L, edge, core);
 
-            int branches = 3 + rng.nextInt(3);
+            int branches = Math.max(1, Math.round((3 + rng.nextInt(3)) * dens));
             for (int k = 0; k < branches; k++) {
                 int idx = 2 + rng.nextInt(main.length - 4);
                 float[] p = main[idx];
@@ -429,24 +438,24 @@ public class EffectRenderer {
                 float[][] br = boltFrom(rng, p[0], p[1], p[2], dir, len * (0.12f + rng.nextFloat() * 0.2f), 4, 1.3f);
                 // branches sprout a little later than the main tendril
                 float g = Math.min(1.0f, Math.max(0.0f, (t - 1.5f) / 3.0f));
-                drawTendril(m, c, br, g, boltA, w * 0.6f, cx, cy, cz, L);
+                drawTendril(m, c, br, g, boltA, w * 0.6f, cx, cy, cz, L, edge, core);
             }
         }
 
         // 4) Red shards floating around
-        for (int i = 0; i < 8; i++) {
+        for (int i = 0; i < shardCount; i++) {
             float[] d = awayFromCamera(norm(rng.nextFloat() - 0.5f, rng.nextFloat() - 0.3f, rng.nextFloat() - 0.5f), view);
             float rad = 0.7f + rng.nextFloat() * 1.0f;
             float size = 0.09f + rng.nextFloat() * 0.07f;
             float appear = rng.nextFloat() * 3.0f;
             if (t < appear || boltA <= 0.0f) continue;
             float px = ox + d[0] * rad, py = oy + d[1] * rad + t * 0.015f, pz = oz + d[2] * rad;
-            billboard(m, c, px, py, pz, right, up, size * 0.6f, size, L * 7, cx, cy, cz, 1.0f, 0.05f, 0.10f, boltA * 0.9f);
-            billboard(m, c, px, py, pz, right, up, size * 0.3f, size * 0.5f, L * 8, cx, cy, cz, 0.03f, 0.0f, 0.04f, boltA * 0.9f);
+            billboard(m, c, px, py, pz, right, up, size * 0.6f, size, L * 7, cx, cy, cz, edge[0], edge[1], edge[2], boltA * 0.9f);
+            billboard(m, c, px, py, pz, right, up, size * 0.3f, size * 0.5f, L * 8, cx, cy, cz, core[0], core[1], core[2], boltA * 0.9f);
         }
 
         // 5) Black pixel debris flying outward
-        for (int i = 0; i < 36; i++) {
+        for (int i = 0; i < debrisCount; i++) {
             float[] d = awayFromCamera(norm(rng.nextFloat() - 0.5f, rng.nextFloat() - 0.4f, rng.nextFloat() - 0.5f), view);
             float rad = 0.6f + rng.nextFloat() * 1.3f;
             float size = 0.05f + rng.nextFloat() * 0.07f;
@@ -455,8 +464,8 @@ public class EffectRenderer {
             float px = ox + d[0] * (rad + t * speed * 4.0f);
             float py = oy + d[1] * (rad + t * speed * 4.0f) - t * t * 0.0008f;
             float pz = oz + d[2] * (rad + t * speed * 4.0f);
-            billboard(m, c, px, py, pz, right, up, size, size * 0.33f, L * 9, cx, cy, cz, 0.02f, 0.02f, 0.05f, boltA * 0.9f);
-            billboard(m, c, px, py, pz, right, up, size * 0.33f, size, L * 9, cx, cy, cz, 0.02f, 0.02f, 0.05f, boltA * 0.9f);
+            billboard(m, c, px, py, pz, right, up, size, size * 0.33f, L * 9, cx, cy, cz, core[0], core[1], core[2], boltA * 0.9f);
+            billboard(m, c, px, py, pz, right, up, size * 0.33f, size, L * 9, cx, cy, cz, core[0], core[1], core[2], boltA * 0.9f);
         }
     }
 }

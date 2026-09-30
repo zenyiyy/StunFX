@@ -7,7 +7,8 @@ A **client-side** Fabric mod for mace PvP. It adds visual and audio feedback for
 - **Stunslam / Black Flash** (Jujutsu Kaisen style): break a shield, then hit within 0.7 seconds. Choose whether only a mace smash (falling or elytra) or any weapon (axe included) counts. Five looks (Manga, Cursed Blue, Gold, Violet, Minimal) and colours, size, duration and sound are adjustable.
 - **Shockwave ring** on every mace hit
 - **Totem pop effect**, **kill effect**
-- **Totem pop counter** with position, size and an optional pop sound
+- **Combo counter** ("BLACK FLASH x3"): counts stunslams in a row and only ends when you fail one or die
+- **Totem pop counter** with size, drag-and-drop position and an optional pop sound
 - **Death sound** when a player dies or a death message appears (Unstable SMP style)
 - One compact settings screen with an Edit page per effect, tooltips and a reset button
 
@@ -23,9 +24,11 @@ Each Minecraft version has its own folder and its own Gradle wrapper:
 
 | Minecraft | Folder | Notes |
 |---|---|---|
-| 1.21.11 | [`1.21.11`](1.21.11) | current, all features |
-| 1.21.4 | [`1.21.4`](1.21.4) | port, not yet updated to the latest features |
-| 26.2 | [`26.2`](26.2) | port, not yet updated to the latest features, needs Java 25+ |
+| 1.21.11 | [`1.21.11`](1.21.11) | main version, most tested |
+| 1.21.4 | [`1.21.4`](1.21.4) | same features, port |
+| 26.2 | [`26.2`](26.2) | same features, port, needs Java 25+ (no obfuscation mappings, uses Mojang names) |
+
+The jars are named `StunFX-<minecraft version>-<mod version>.jar`.
 
 Requires Fabric Loader and Fabric API.
 

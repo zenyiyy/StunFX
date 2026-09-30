@@ -3,7 +3,7 @@
   "id": "maseffectsplus",
   "version": "${version}",
   "name": "Stun FX",
-  "description": "Enhanced PvP & Mace combat visual effects with custom Black Flash Stunslam, PopEffects GUI, and Pop Counter.",
+  "description": "Mace PvP effects: a Black Flash on stunslams, shockwave rings on mace hits, a totem pop counter and a death sound.",
   "authors": [
     "zeny"
   ],
