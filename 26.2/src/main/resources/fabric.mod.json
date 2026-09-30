@@ -3,11 +3,15 @@
   "id": "maseffectsplus",
   "version": "${version}",
   "name": "Stun FX",
-  "description": "Enhanced PvP & Mace combat visual effects with custom Black Flash Stunslam, PopEffects GUI, and Pop Counter.",
+  "description": "Client-side mace PvP effects. A Jujutsu Kaisen style Black Flash on stunslams (shield break followed by a hit within 0.7 seconds), a stunslam combo counter, shockwave rings on mace hits, totem pop and kill effects, a totem pop counter and an Unstable SMP style death sound. Compact in-game settings (Right Shift or /stunfx) with five looks, colours, sizes and drag-and-drop HUD positions.",
   "authors": [
     "zeny"
   ],
-  "contact": {},
+  "contact": {
+    "homepage": "https://modrinth.com/mod/stunfx",
+    "issues": "https://github.com/zenyiyy/stunfx/issues",
+    "sources": "https://github.com/zenyiyy/stunfx"
+  },
   "license": "MIT",
   "icon": "assets/maseffectsplus/icon.png",
   "environment": "client",
