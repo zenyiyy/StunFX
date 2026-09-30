@@ -1,0 +1,31 @@
+{
+  "schemaVersion": 1,
+  "id": "maseffectsplus",
+  "version": "${version}",
+  "name": "Stun FX",
+  "description": "Enhanced PvP & Mace combat visual effects with custom Black Flash Stunslam, PopEffects GUI, and Pop Counter.",
+  "authors": [
+    "zeny"
+  ],
+  "contact": {},
+  "license": "MIT",
+  "icon": "assets/maseffectsplus/icon.png",
+  "environment": "client",
+  "entrypoints": {
+    "client": [
+      "com.maseffectsplus.MasEffectsClient"
+    ],
+    "modmenu": [
+      "com.maseffectsplus.compat.ModMenuCompat"
+    ]
+  },
+  "mixins": [
+    "maseffectsplus.mixins.json"
+  ],
+  "depends": {
+    "fabricloader": ">=0.18.0",
+    "minecraft": "1.21.4",
+    "java": ">=21",
+    "fabric-api": "*"
+  }
+}
