@@ -37,7 +37,10 @@ public class CombatTracker {
 
     /** The server told us a shield was disabled (entity event 30). */
     public static void onShieldDisabled(int entityId) {
-        if (locked(STUNSLAM_LOCK, entityId)) return; // same break that a stunslam already used
+        // A "shield disabled" message arriving shortly after a stunslam is the same break that was already used
+        // (it comes with your ping). Later ones are real new breaks.
+        Long until = STUNSLAM_LOCK.get(entityId);
+        if (until != null && System.currentTimeMillis() < until - (STUNSLAM_LOCK_MS - 1500L)) return;
         SHIELD_DISABLED_ENTITIES.put(entityId, System.currentTimeMillis());
     }
 
@@ -55,12 +58,19 @@ public class CombatTracker {
 
             // An axe hit on a shielded target that isn't broken yet breaks the shield: remember it immediately.
             // If the shield was just broken, an axe is a normal follow-up weapon like any other.
-            if (!shieldRecentlyBroken && !locked(STUNSLAM_LOCK, target.getId()) && !locked(PREDICT_LOCK, target.getId())
+            boolean axeSawShield = false;
+            boolean recordedBreak = false;
+            if (!shieldRecentlyBroken && !locked(PREDICT_LOCK, target.getId())
                     && client.player.getMainHandStack().getItem() instanceof AxeItem) {
-                boolean hasShield = livingTarget.isBlocking()
-                        || livingTarget.getOffHandStack().isOf(Items.SHIELD)
+                // A raised shield is active again, so hitting it is a real new break, even shortly after a stunslam.
+                // Only holding a shield (not raised) doesn't count while the last stunslam's shield is still disabled.
+                boolean blocking = livingTarget.isBlocking();
+                boolean holdsShield = livingTarget.getOffHandStack().isOf(Items.SHIELD)
                         || livingTarget.getMainHandStack().isOf(Items.SHIELD);
+                boolean hasShield = blocking || (holdsShield && !locked(STUNSLAM_LOCK, target.getId()));
+                axeSawShield = hasShield;
                 if (hasShield) {
+                    recordedBreak = true;
                     SHIELD_DISABLED_ENTITIES.put(target.getId(), now);
                     PREDICT_LOCK.put(target.getId(), now + PREDICT_LOCK_MS);
                     // From now on the stunslam has to follow in time, otherwise the combo is lost
@@ -83,6 +93,27 @@ public class CombatTracker {
                         SHIELD_DISABLED_ENTITIES.remove(target.getId());
                     }
                 }
+            }
+
+            if (config.debug) {
+                String why;
+                if (isStunslam) {
+                    why = "FLASH";
+                } else if (shieldRecentlyBroken) {
+                    why = config.stunslamAnyWeapon ? "?" : "follow-up not valid: need mace + smash (fall "
+                            + String.format(java.util.Locale.ROOT, "%.1f", client.player.fallDistance) + ", need >1.5)";
+                } else if (recordedBreak) {
+                    why = "shield break recorded, now hit within 0.7s";
+                } else if (locked(STUNSLAM_LOCK, target.getId())) {
+                    why = "flash <5s ago and the shield isn't raised again yet";
+                } else if (locked(PREDICT_LOCK, target.getId())) {
+                    why = "axe swing right after a break, ignored";
+                } else if (client.player.getMainHandStack().getItem() instanceof AxeItem) {
+                    why = "axe hit but target has no shield";
+                } else {
+                    why = "no shield break recorded (0.7s window over or no axe hit)";
+                }
+                client.player.sendMessage(net.minecraft.text.Text.literal("StunFX: " + why), true);
             }
 
             // The follow-up after your shield break wasn't a valid stunslam (e.g. a mace hit without a smash): combo lost

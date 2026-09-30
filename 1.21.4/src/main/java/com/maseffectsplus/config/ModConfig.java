@@ -40,6 +40,9 @@ public class ModConfig {
     public boolean deathSoundEnabled = true;
     public float deathSoundVolume = 1.0f;
 
+    // /stunfx debug: shows why a stunslam did or did not trigger (not a normal setting, off by default)
+    public boolean debug = false;
+
     // Stunslam trigger: false = shield break + mace smash, true = shield break + a follow-up hit with any weapon
     public boolean stunslamAnyWeapon = false;
 

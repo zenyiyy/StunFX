@@ -209,7 +209,15 @@ public class MasEffectsClient implements ClientModInitializer {
                             .then(ClientCommands.literal("sound").executes(context -> {
                                 testDeathSound(Minecraft.getInstance());
                                 return 1;
-                            }))));
+                            })))
+                    // /stunfx debug: shows above the hotbar why a stunslam did or did not trigger
+                    .then(ClientCommands.literal("debug").executes(context -> {
+                        ModConfig cfg = ModConfig.get();
+                        cfg.debug = !cfg.debug;
+                        ModConfig.save();
+                        actionBar(Minecraft.getInstance(), "Stun FX debug: " + onOff(cfg.debug));
+                        return 1;
+                    })));
             }
 
             dispatcher.register(ClientCommands.literal("popeffects")
