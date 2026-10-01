@@ -128,9 +128,10 @@ public class CombatTracker {
                 if (config.stunslam.soundEnabled) {
                     playCustomSound(Identifier.of("maseffectsplus", "stunslam.black_flash"), config.stunslam.volume * 2.0f, config.stunslam.pitch);
                 }
-            } else if (client.player.getMainHandStack().isOf(Items.MACE) && config.bigDamage.enabled) {
-                // Any Mace hit spawns bigDamage Mace effect and sound!
-                // Plain mace hit: visual only, the Black Flash sound is reserved for a real stunslam
+            } else if (client.player.getMainHandStack().isOf(Items.MACE) && config.bigDamage.enabled
+                    && (client.player.fallDistance > 1.5f || client.player.isGliding())) {
+                // Only a real mace smash (falling or elytra) spawns the ring; a plain hit on the ground does not.
+                // Visual only, the Black Flash sound is reserved for a real stunslam
                 EffectManager.spawnEffect(config.bigDamage, target);
             }
         } catch (Throwable t) {

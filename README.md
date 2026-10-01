@@ -5,7 +5,7 @@ A **client-side** Fabric mod for mace PvP. It adds visual and audio feedback for
 ## Features
 
 - **Stunslam / Black Flash** (Jujutsu Kaisen style): break a shield, then hit within 0.7 seconds. Choose whether only a mace smash (falling or elytra) or any weapon (axe included) counts. Five looks (Manga, Cursed Blue, Gold, Violet, Minimal) and colours, size, duration and sound are adjustable.
-- **Shockwave ring** on every mace hit
+- **Shockwave ring** on every mace smash (falling or elytra, not on a plain hit on the ground)
 - **Totem pop effect**, **kill effect**
 - **Combo counter** ("BLACK FLASH x3"): counts stunslams in a row and only ends when you fail one or die
 - **Totem pop counter** with size, drag-and-drop position and an optional pop sound
