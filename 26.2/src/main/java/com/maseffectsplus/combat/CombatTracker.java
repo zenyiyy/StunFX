@@ -61,12 +61,9 @@ public class CombatTracker {
             boolean recordedBreak = false;
             if (!shieldRecentlyBroken && !locked(PREDICT_LOCK, target.getId())
                     && client.player.getMainHandItem().getItem() instanceof AxeItem) {
-                // A raised shield is active again, so hitting it is a real new break, even shortly after a stunslam.
-                // Only holding a shield (not raised) doesn't count while the last stunslam's shield is still disabled.
-                boolean blocking = livingTarget.isBlocking();
-                boolean holdsShield = livingTarget.getOffhandItem().getItem() == Items.SHIELD
-                        || livingTarget.getMainHandItem().getItem() == Items.SHIELD;
-                boolean hasShield = blocking || (holdsShield && !locked(STUNSLAM_LOCK, target.getId()));
+                // Only a raised shield can be broken by an axe (a shield that is merely held is not disabled), and a
+                // raised shield is active again, so this counts as a new break even shortly after a stunslam.
+                boolean hasShield = livingTarget.isBlocking();
                 if (hasShield) {
                     recordedBreak = true;
                     SHIELD_DISABLED_ENTITIES.put(target.getId(), now);
@@ -107,7 +104,7 @@ public class CombatTracker {
                 } else if (locked(PREDICT_LOCK, target.getId())) {
                     why = "axe swing right after a break, ignored";
                 } else if (client.player.getMainHandItem().getItem() instanceof AxeItem) {
-                    why = "axe hit but target has no shield";
+                    why = "axe hit but the target's shield isn't raised";
                 } else {
                     why = "no shield break recorded (0.7s window over or no axe hit)";
                 }
