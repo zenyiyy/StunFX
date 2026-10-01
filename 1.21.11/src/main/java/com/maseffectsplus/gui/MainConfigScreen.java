@@ -89,7 +89,7 @@ public class MainConfigScreen extends Screen {
                 () -> config.effectsEnabled, v -> config.effectsEnabled = v));
         toggleWithEdit(0, 1, "Stunslam", "Black Flash: break a shield, then land a mace smash.",
                 config.stunslam, "Stunslam", EffectConfig::createDefaultStunslam, true);
-        toggleWithEdit(0, 2, "Mace ring", "Shockwave ring on the ground when you hit with a mace.",
+        toggleWithEdit(0, 2, "Mace ring", "Shockwave ring on the ground when you smash with a mace.",
                 config.bigDamage, "Mace hit ring", EffectConfig::createDefaultBigDamage, false);
         toggleWithEdit(0, 3, "Totem pop", "Ring that spreads when a player pops a totem.",
                 config.totemPop, "Totem pop effect", EffectConfig::createDefaultTotemPop, false);

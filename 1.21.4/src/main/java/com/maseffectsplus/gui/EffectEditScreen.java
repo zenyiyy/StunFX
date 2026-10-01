@@ -173,6 +173,13 @@ public class EffectEditScreen extends Screen {
                     })
                     .dimensions(lx, START_Y + ROW * row++, W, H).build(),
                     "Mace only: needs a real smash (falling or elytra).\nAny weapon: the next hit after the shield break."));
+            this.addDrawableChild(tip(ButtonWidget.builder(onOff("Ring with flash", modConfig.ringWithFlash), btn -> {
+                        modConfig.ringWithFlash = !modConfig.ringWithFlash;
+                        btn.setMessage(onOff("Ring with flash", modConfig.ringWithFlash));
+                        ModConfig.save();
+                    })
+                    .dimensions(lx, START_Y + ROW * row++, W, H).build(),
+                    "Also show the mace ring when a Black Flash happens.\nThe ring itself is set up under 'Mace ring'."));
         }
         if (blackFlash || ring) {
             this.addDrawableChild(tip(ButtonWidget.builder(lookText(), btn -> {

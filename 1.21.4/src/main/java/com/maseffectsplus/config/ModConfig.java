@@ -46,6 +46,9 @@ public class ModConfig {
     // Stunslam trigger: false = shield break + mace smash, true = shield break + a follow-up hit with any weapon
     public boolean stunslamAnyWeapon = false;
 
+    // The mace ring also shows together with a Black Flash (edit page of the stunslam effect)
+    public boolean ringWithFlash = true;
+
     public double range = 48.0;
     public int maxEffects = 32;
 

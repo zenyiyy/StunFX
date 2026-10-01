@@ -123,6 +123,9 @@ public class CombatTracker {
                 STUNSLAM_LOCK.put(target.getId(), now + STUNSLAM_LOCK_MS);
                 ComboTracker.onStunslam();
                 EffectManager.spawnEffect(config.stunslam, target);
+                if (config.ringWithFlash && config.bigDamage.enabled) {
+                    EffectManager.spawnEffect(config.bigDamage, target);
+                }
                 if (config.stunslam.soundEnabled) {
                     playCustomSound(Identifier.of("maseffectsplus", "stunslam.black_flash"), config.stunslam.volume * 2.0f, config.stunslam.pitch);
                 }
