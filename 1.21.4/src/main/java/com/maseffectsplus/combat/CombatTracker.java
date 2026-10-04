@@ -35,13 +35,33 @@ public class CombatTracker {
         return until != null && System.currentTimeMillis() < until;
     }
 
+    // When you last hit each entity: a "shield disabled" message only counts if it follows a hit of yours
+    private static final Map<Integer, Long> LAST_ATTACK = new ConcurrentHashMap<>();
+    private static final long OWN_HIT_MATCH_MS = 1500L;
+    private static long lastPrune = 0L;
+
+    /** Drops old entries now and then so the maps don't grow during a long session. */
+    private static void pruneOld(long now) {
+        if (now - lastPrune < 30_000L) return;
+        lastPrune = now;
+        SHIELD_DISABLED_ENTITIES.values().removeIf(t -> now - t > 10_000L);
+        LAST_ATTACK.values().removeIf(t -> now - t > 10_000L);
+        LAST_POP_BY_ENTITY.values().removeIf(t -> now - t > 10_000L);
+        STUNSLAM_LOCK.values().removeIf(until -> now > until);
+        PREDICT_LOCK.values().removeIf(until -> now > until);
+    }
+
     /** The server told us a shield was disabled (entity event 30). */
     public static void onShieldDisabled(int entityId) {
+        long now = System.currentTimeMillis();
+        // Only a break that follows a hit of yours is your stunslam (a teammate breaking the shield is not)
+        Long hit = LAST_ATTACK.get(entityId);
+        if (hit == null || now - hit > OWN_HIT_MATCH_MS) return;
         // A "shield disabled" message arriving shortly after a stunslam is the same break that was already used
         // (it comes with your ping). Later ones are real new breaks.
         Long until = STUNSLAM_LOCK.get(entityId);
-        if (until != null && System.currentTimeMillis() < until - (STUNSLAM_LOCK_MS - 1500L)) return;
-        SHIELD_DISABLED_ENTITIES.put(entityId, System.currentTimeMillis());
+        if (until != null && now < until - (STUNSLAM_LOCK_MS - 1500L)) return;
+        SHIELD_DISABLED_ENTITIES.put(entityId, now);
     }
 
     public static void onAttackEntity(MinecraftClient client, Entity target) {
@@ -50,6 +70,8 @@ public class CombatTracker {
 
             ModConfig config = ModConfig.get();
             long now = System.currentTimeMillis();
+            LAST_ATTACK.put(target.getId(), now);
+            pruneOld(now);
 
             // Was the shield already broken a moment ago? (checked before this hit, so the breaking hit itself
             // never counts as its own follow-up)
@@ -165,7 +187,17 @@ public class CombatTracker {
         }
     }
 
+    /** Minecraft's own master volume (0..1), so this sound follows the game's volume slider like every other sound. */
+    private static float gameVolume() {
+        try {
+            return MinecraftClient.getInstance().options.getSoundVolume(SoundCategory.MASTER);
+        } catch (Throwable t) {
+            return 1.0f;
+        }
+    }
+
     private static synchronized boolean playPreloaded(float volume) {
+        if (volume <= 0.001f) return true; // game volume is 0: stay silent
         preloadSound();
         javax.sound.sampled.Clip clip = CLIPS[nextClip];
         nextClip = (nextClip + 1) % CLIP_POOL_SIZE;
@@ -189,7 +221,7 @@ public class CombatTracker {
     public static void playCustomSound(Identifier id, float volume, float pitch) {
         // 1. Instant playback from a pre-opened clip (no loading, no thread spawn). The clip can't change pitch,
         //    so a different pitch (e.g. the deeper finisher sound) goes through Minecraft's sound engine below.
-        if (Math.abs(pitch - 1.0f) < 0.16f && playPreloaded(volume)) return;
+        if (Math.abs(pitch - 1.0f) < 0.16f && playPreloaded(volume * gameVolume())) return;
 
         // 2. Fallback: Minecraft SoundManager (only if the preloaded clip is unavailable)
         try {
