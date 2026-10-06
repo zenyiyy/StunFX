@@ -26,9 +26,9 @@ Each Minecraft version has its own folder and its own Gradle wrapper:
 
 | Minecraft | Folder | Notes |
 |---|---|---|
-| 1.21.11 | [`1.21.11`](1.21.11) | main version, most tested |
-| 1.21.4 | [`1.21.4`](1.21.4) | same features, port, not tested in game yet |
-| 26.2 | [`26.2`](26.2) | same features, port, not tested in game yet, needs Java 25+ (no obfuscation mappings, uses Mojang names) |
+| 1.21.11 | [`1.21.11`](1.21.11) | main version |
+| 1.21.4 | [`1.21.4`](1.21.4) | same features, port |
+| 26.2 | [`26.2`](26.2) | same features, port, needs Java 25+ (no obfuscation mappings, uses Mojang names) |
 
 The jars are named `StunFX-<minecraft version>-<mod version>.jar`.
 
@@ -49,7 +49,7 @@ The sound files (Black Flash and death sound) are not part of this repository. P
 
 ## Notes
 
-- Needs Fabric Loader and Fabric API. Works on 1.21.11, 1.21.4 and 26.2. The 1.21.4 and 26.2 builds are not tested in game yet, please report problems.
+- Needs Fabric Loader and Fabric API. Works on 1.21.11, 1.21.4 and 26.2. Please report problems in the issues.
 - The mod only changes what you see and hear on your own screen. It sends nothing to servers.
 - Low impact on FPS.
 
