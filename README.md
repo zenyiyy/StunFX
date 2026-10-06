@@ -49,6 +49,10 @@ The sound files (Black Flash and death sound) are not part of this repository. P
 
 ## Notes
 
+- Needs Fabric Loader and Fabric API. Works on 1.21.11, 1.21.4 and 26.2. The 1.21.4 and 26.2 builds are not tested in game yet, please report problems.
+- The mod only changes what you see and hear on your own screen. It sends nothing to servers.
+- Low impact on FPS.
+
 Fan-made. Not affiliated with or endorsed by Mojang, Microsoft or the creators of *Jujutsu Kaisen*.
 
 ## License
