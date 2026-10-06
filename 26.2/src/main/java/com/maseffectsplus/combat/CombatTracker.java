@@ -40,10 +40,55 @@ public class CombatTracker {
     private static final long OWN_HIT_MATCH_MS = 1500L;
     private static long lastPrune = 0L;
 
+    // A break we only guessed from an axe hit (SHIELD_PREDICTED) has to be confirmed by the server (SHIELD_CONFIRMED),
+    // otherwise it didn't happen (axe not charged, hit from the side or behind, shield was down...).
+    private static final Map<Integer, Long> SHIELD_PREDICTED = new ConcurrentHashMap<>();
+    private static final Map<Integer, Long> SHIELD_CONFIRMED = new ConcurrentHashMap<>();
+    private static final long CONFIRM_MARGIN_MS = 150L; // on top of your ping
+
+    private static long latencyMs(Minecraft client) {
+        try {
+            if (client.getConnection() != null && client.player != null) {
+                net.minecraft.client.multiplayer.PlayerInfo entry =
+                        client.getConnection().getPlayerInfo(client.player.getUUID());
+                if (entry != null) return Math.max(0, entry.getLatency());
+            }
+        } catch (Throwable ignored) {
+        }
+        return 100L;
+    }
+
+    /** True if we guessed a shield break and the server didn't confirm it in time. */
+    private static boolean predictionExpired(Minecraft client, int id, long now) {
+        Long pred = SHIELD_PREDICTED.get(id);
+        if (pred == null) return false;
+        Long conf = SHIELD_CONFIRMED.get(id);
+        if (conf != null && conf >= pred) return false;
+        return now - pred > latencyMs(client) + CONFIRM_MARGIN_MS;
+    }
+
+    private static void cancelPrediction(int id) {
+        SHIELD_PREDICTED.remove(id);
+        SHIELD_DISABLED_ENTITIES.remove(id);
+        ComboTracker.cancelAttempt(); // the shield never broke, so this isn't a failed stunslam
+    }
+
+    /** Called every client tick: drops guessed shield breaks the server did not confirm. */
+    public static void tick() {
+        if (SHIELD_PREDICTED.isEmpty()) return;
+        Minecraft client = Minecraft.getInstance();
+        long now = System.currentTimeMillis();
+        for (Integer id : SHIELD_PREDICTED.keySet()) {
+            if (predictionExpired(client, id, now)) cancelPrediction(id);
+        }
+    }
+
     /** Drops old entries now and then so the maps don't grow during a long session. */
     private static void pruneOld(long now) {
         if (now - lastPrune < 30_000L) return;
         lastPrune = now;
+        SHIELD_PREDICTED.values().removeIf(t -> now - t > 10_000L);
+        SHIELD_CONFIRMED.values().removeIf(t -> now - t > 10_000L);
         SHIELD_DISABLED_ENTITIES.values().removeIf(t -> now - t > 10_000L);
         LAST_ATTACK.values().removeIf(t -> now - t > 10_000L);
         LAST_POP_BY_ENTITY.values().removeIf(t -> now - t > 10_000L);
@@ -62,6 +107,7 @@ public class CombatTracker {
         Long until = STUNSLAM_LOCK.get(entityId);
         if (until != null && now < until - (STUNSLAM_LOCK_MS - 1500L)) return;
         SHIELD_DISABLED_ENTITIES.put(entityId, now);
+        SHIELD_CONFIRMED.put(entityId, now);
     }
 
     public static void onAttackEntity(Minecraft client, Entity target) {
@@ -78,16 +124,36 @@ public class CombatTracker {
             Long disabledTime = SHIELD_DISABLED_ENTITIES.get(target.getId());
             boolean shieldRecentlyBroken = disabledTime != null && (now - disabledTime) <= STUN_WINDOW_MS;
 
+            // A break we only guessed from an axe hit that the server never confirmed didn't happen
+            boolean unconfirmed = false;
+            if (shieldRecentlyBroken && predictionExpired(client, target.getId(), now)) {
+                cancelPrediction(target.getId());
+                shieldRecentlyBroken = false;
+                unconfirmed = true;
+            }
+
             // An axe hit on a shielded target that isn't broken yet breaks the shield: remember it immediately.
             // If the shield was just broken, an axe is a normal follow-up weapon like any other.
+            boolean weakHit = false;
+            boolean fromSide = false;
             boolean recordedBreak = false;
             if (!shieldRecentlyBroken && !locked(PREDICT_LOCK, target.getId())
                     && client.player.getMainHandItem().getItem() instanceof AxeItem) {
                 // Only a raised shield can be broken by an axe (a shield that is merely held is not disabled), and a
                 // raised shield is active again, so this counts as a new break even shortly after a stunslam.
-                boolean hasShield = livingTarget.isBlocking();
+                // Like in the game, it only breaks with a charged axe and when you hit the shield from the front.
+                boolean blocking = livingTarget.isBlocking();
+                weakHit = blocking && client.player.getAttackStrengthScale(0.5f) < 0.9f;
+                double yaw = Math.toRadians(livingTarget.getYHeadRot());
+                double dx = client.player.getX() - target.getX();
+                double dz = client.player.getZ() - target.getZ();
+                double len = Math.sqrt(dx * dx + dz * dz);
+                fromSide = blocking && len > 1.0e-4 && ((-Math.sin(yaw)) * dx + Math.cos(yaw) * dz) / len <= 0.0;
+                boolean hasShield = blocking && !weakHit && !fromSide;
                 if (hasShield) {
                     recordedBreak = true;
+                    SHIELD_PREDICTED.put(target.getId(), now);
+                    SHIELD_CONFIRMED.remove(target.getId());
                     SHIELD_DISABLED_ENTITIES.put(target.getId(), now);
                     PREDICT_LOCK.put(target.getId(), now + PREDICT_LOCK_MS);
                     // From now on the stunslam has to follow in time, otherwise the combo is lost
@@ -119,8 +185,14 @@ public class CombatTracker {
                 } else if (shieldRecentlyBroken) {
                     why = config.stunslamAnyWeapon ? "?" : "follow-up not valid: need mace + smash (fall "
                             + String.format(java.util.Locale.ROOT, "%.1f", client.player.fallDistance) + ", need >1.5)";
+                } else if (unconfirmed) {
+                    why = "the server did not confirm a shield break, no stunslam";
                 } else if (recordedBreak) {
                     why = "shield break recorded, now hit within 0.7s";
+                } else if (weakHit) {
+                    why = "axe not charged enough, the shield isn't broken";
+                } else if (fromSide) {
+                    why = "hit from the side or behind, the shield doesn't block it";
                 } else if (locked(STUNSLAM_LOCK, target.getId())) {
                     why = "flash <5s ago and the shield isn't raised again yet";
                 } else if (locked(PREDICT_LOCK, target.getId())) {

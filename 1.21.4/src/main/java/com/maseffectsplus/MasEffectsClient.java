@@ -258,6 +258,7 @@ public class MasEffectsClient implements ClientModInitializer {
             }
 
             runDelayedTasks();
+            CombatTracker.tick(); // drops guessed shield breaks the server did not confirm
             ComboTracker.tick(); // a shield break without a stunslam in time ends the combo
 
             try {

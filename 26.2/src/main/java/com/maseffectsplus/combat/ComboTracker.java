@@ -36,6 +36,11 @@ public class ComboTracker {
         return attemptDeadline != 0L;
     }
 
+    /** The shield break we expected never happened: forget the attempt without ending the combo. */
+    public static synchronized void cancelAttempt() {
+        attemptDeadline = 0L;
+    }
+
     /** A stunslam attempt failed (invalid follow-up hit or too late): the combo ends. */
     public static synchronized void fail() {
         count = 0;
