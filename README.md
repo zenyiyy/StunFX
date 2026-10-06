@@ -6,7 +6,7 @@ Download: [Modrinth](https://modrinth.com/mod/stunfx)
 
 ## Features
 
-- **Black Flash on stunslams** (Jujutsu Kaisen style): break a shield, then land the follow-up hit within 0.7 seconds. Choose whether only a mace smash (falling or elytra) counts or a hit with any weapon (axe included).
+- **Black Flash on stunslams** (Jujutsu Kaisen style): break a shield, then land the follow-up hit within 0.7 seconds. Choose whether only a real mace smash counts (a fall of more than 1.5 blocks; with an elytra: glide to the target, put the chestplate back on, then hit) or a hit with any weapon (axe included).
 - **Combo counter** ("BLACK FLASH x3"): counts stunslams in a row and only ends when you fail one or die. Time on screen and position are adjustable.
 - **Mace ring** on every real mace smash, with an option to show it together with the Black Flash.
 - **Totem pop effect**, **kill effect** and a **totem pop counter** with an optional pop sound.

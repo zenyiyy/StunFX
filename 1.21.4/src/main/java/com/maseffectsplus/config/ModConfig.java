@@ -50,6 +50,8 @@ public class ModConfig {
     public boolean ringWithFlash = true;
 
     public double range = 48.0;
+    // Totem pops (effect and counter) of every player up to this far away are shown, not only your own fights
+    public double totemRange = 128.0;
     public int maxEffects = 32;
 
     // Effect specific configurations

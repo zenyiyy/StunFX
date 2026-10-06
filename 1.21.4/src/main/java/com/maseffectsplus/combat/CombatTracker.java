@@ -38,13 +38,16 @@ public class CombatTracker {
     // When you last hit each entity: a "shield disabled" message only counts if it follows a hit of yours
     private static final Map<Integer, Long> LAST_ATTACK = new ConcurrentHashMap<>();
     private static final long OWN_HIT_MATCH_MS = 1500L;
+    // When you last hit each entity with an axe: only an axe breaks a shield, so only a "shield disabled" message
+    // right after one of your own axe hits is your break (not a teammate's, not one from a fight next to you)
+    private static final Map<Integer, Long> LAST_AXE_ATTACK = new ConcurrentHashMap<>();
     private static long lastPrune = 0L;
 
     // A break we only guessed from an axe hit (SHIELD_PREDICTED) has to be confirmed by the server (SHIELD_CONFIRMED),
     // otherwise it didn't happen (axe not charged, hit from the side or behind, shield was down...).
     private static final Map<Integer, Long> SHIELD_PREDICTED = new ConcurrentHashMap<>();
     private static final Map<Integer, Long> SHIELD_CONFIRMED = new ConcurrentHashMap<>();
-    private static final long CONFIRM_MARGIN_MS = 150L; // on top of your ping
+    private static final long CONFIRM_MARGIN_MS = 250L; // on top of your ping
 
     private static long latencyMs(MinecraftClient client) {
         try {
@@ -79,6 +82,17 @@ public class CombatTracker {
         MinecraftClient client = MinecraftClient.getInstance();
         long now = System.currentTimeMillis();
         for (Integer id : SHIELD_PREDICTED.keySet()) {
+            Long pred = SHIELD_PREDICTED.get(id);
+            if (pred == null) continue;
+            // Newer versions don't send a "shield disabled" message any more. A broken shield shows up as the target
+            // no longer blocking shortly after your axe hit (it can't raise it again for a few seconds).
+            Long conf = SHIELD_CONFIRMED.get(id);
+            boolean confirmed = conf != null && conf >= pred;
+            Entity entity = client.world == null ? null : client.world.getEntityById(id);
+            if (!confirmed && entity instanceof LivingEntity living && !living.isBlocking() && now - pred >= 30L) {
+                SHIELD_CONFIRMED.put(id, now);
+                continue;
+            }
             if (predictionExpired(client, id, now)) cancelPrediction(id);
         }
     }
@@ -91,6 +105,7 @@ public class CombatTracker {
         SHIELD_CONFIRMED.values().removeIf(t -> now - t > 10_000L);
         SHIELD_DISABLED_ENTITIES.values().removeIf(t -> now - t > 10_000L);
         LAST_ATTACK.values().removeIf(t -> now - t > 10_000L);
+        LAST_AXE_ATTACK.values().removeIf(t -> now - t > 10_000L);
         LAST_POP_BY_ENTITY.values().removeIf(t -> now - t > 10_000L);
         STUNSLAM_LOCK.values().removeIf(until -> now > until);
         PREDICT_LOCK.values().removeIf(until -> now > until);
@@ -99,9 +114,9 @@ public class CombatTracker {
     /** The server told us a shield was disabled (entity event 30). */
     public static void onShieldDisabled(int entityId) {
         long now = System.currentTimeMillis();
-        // Only a break that follows a hit of yours is your stunslam (a teammate breaking the shield is not)
-        Long hit = LAST_ATTACK.get(entityId);
-        if (hit == null || now - hit > OWN_HIT_MATCH_MS) return;
+        // Only a break that follows an axe hit of yours is your stunslam (a teammate breaking the shield is not)
+        Long hit = LAST_AXE_ATTACK.get(entityId);
+        if (hit == null || now - hit > Math.min(OWN_HIT_MATCH_MS, latencyMs(MinecraftClient.getInstance()) + 400L)) return;
         // A "shield disabled" message arriving shortly after a stunslam is the same break that was already used
         // (it comes with your ping). Later ones are real new breaks.
         Long until = STUNSLAM_LOCK.get(entityId);
@@ -117,6 +132,9 @@ public class CombatTracker {
             ModConfig config = ModConfig.get();
             long now = System.currentTimeMillis();
             LAST_ATTACK.put(target.getId(), now);
+            if (client.player.getMainHandStack().getItem() instanceof AxeItem) {
+                LAST_AXE_ATTACK.put(target.getId(), now);
+            }
             pruneOld(now);
 
             // Was the shield already broken a moment ago? (checked before this hit, so the breaking hit itself
@@ -134,22 +152,20 @@ public class CombatTracker {
 
             // An axe hit on a shielded target that isn't broken yet breaks the shield: remember it immediately.
             // If the shield was just broken, an axe is a normal follow-up weapon like any other.
-            boolean weakHit = false;
             boolean fromSide = false;
             boolean recordedBreak = false;
             if (!shieldRecentlyBroken && !locked(PREDICT_LOCK, target.getId())
                     && client.player.getMainHandStack().getItem() instanceof AxeItem) {
                 // Only a raised shield can be broken by an axe (a shield that is merely held is not disabled), and a
                 // raised shield is active again, so this counts as a new break even shortly after a stunslam.
-                // Like in the game, it only breaks with a charged axe and when you hit the shield from the front.
+                // Like in the game, it only breaks when you hit the shield from the front (a charged axe is not needed).
                 boolean blocking = livingTarget.isBlocking();
-                weakHit = blocking && client.player.getAttackCooldownProgress(0.5f) < 0.9f;
                 double yaw = Math.toRadians(livingTarget.getHeadYaw());
                 double dx = client.player.getX() - target.getX();
                 double dz = client.player.getZ() - target.getZ();
                 double len = Math.sqrt(dx * dx + dz * dz);
                 fromSide = blocking && len > 1.0e-4 && ((-Math.sin(yaw)) * dx + Math.cos(yaw) * dz) / len <= 0.0;
-                boolean hasShield = blocking && !weakHit && !fromSide;
+                boolean hasShield = blocking && !fromSide;
                 if (hasShield) {
                     recordedBreak = true;
                     SHIELD_PREDICTED.put(target.getId(), now);
@@ -168,9 +184,9 @@ public class CombatTracker {
                     isStunslam = true;
                     SHIELD_DISABLED_ENTITIES.remove(target.getId());
                 } else {
-                    // Mace mode: only a real smash counts: holding the mace AND falling (> 1.5 blocks of fall distance)
-                    // or flying with an elytra (elytra mace). A plain hit on the ground never triggers a Black Flash.
-                    boolean smash = client.player.fallDistance > 1.5f || client.player.isGliding();
+                    // Mace mode: only a real smash counts, holding the mace AND falling (> 1.5 blocks of fall distance)
+                    // and not gliding: with an elytra you glide to the target, put the chestplate back on and then hit). A plain hit on the ground never triggers a Black Flash.
+                    boolean smash = client.player.fallDistance > 1.5f && !client.player.isGliding();
                     if (client.player.getMainHandStack().isOf(Items.MACE) && smash) {
                         isStunslam = true;
                         SHIELD_DISABLED_ENTITIES.remove(target.getId());
@@ -183,14 +199,12 @@ public class CombatTracker {
                 if (isStunslam) {
                     why = "FLASH";
                 } else if (shieldRecentlyBroken) {
-                    why = config.stunslamAnyWeapon ? "?" : "follow-up not valid: need mace + smash (fall "
+                    why = config.stunslamAnyWeapon ? "?" : "follow-up not valid: need mace + smash, not while gliding (fall "
                             + String.format(java.util.Locale.ROOT, "%.1f", client.player.fallDistance) + ", need >1.5)";
                 } else if (unconfirmed) {
                     why = "the server did not confirm a shield break, no stunslam";
                 } else if (recordedBreak) {
                     why = "shield break recorded, now hit within 0.7s";
-                } else if (weakHit) {
-                    why = "axe not charged enough, the shield isn't broken";
                 } else if (fromSide) {
                     why = "hit from the side or behind, the shield doesn't block it";
                 } else if (locked(STUNSLAM_LOCK, target.getId())) {
@@ -224,8 +238,8 @@ public class CombatTracker {
                     playCustomSound(Identifier.of("maseffectsplus", "stunslam.black_flash"), config.stunslam.volume * 2.0f, config.stunslam.pitch);
                 }
             } else if (client.player.getMainHandStack().isOf(Items.MACE) && config.bigDamage.enabled
-                    && (client.player.fallDistance > 1.5f || client.player.isGliding())) {
-                // Only a real mace smash (falling or elytra) spawns the ring; a plain hit on the ground does not.
+                    && (client.player.fallDistance > 1.5f && !client.player.isGliding())) {
+                // Only a real mace smash (falling, not gliding) spawns the ring; a plain hit on the ground does not.
                 // Visual only, the Black Flash sound is reserved for a real stunslam
                 EffectManager.spawnEffect(config.bigDamage, target);
             }
@@ -334,14 +348,23 @@ public class CombatTracker {
 
     private static final Map<Integer, Long> LAST_POP_BY_ENTITY = new ConcurrentHashMap<>();
 
+    // The effects are for your own fights: only entities you hit a moment ago get a totem pop or kill effect.
+    // (The totem pop counter still counts everybody in range.)
+    private static final long OWN_TARGET_MS = 6000L;
+
+    private static boolean hitByYouRecently(Entity entity) {
+        Long t = LAST_ATTACK.get(entity.getId());
+        return t != null && System.currentTimeMillis() - t <= OWN_TARGET_MS;
+    }
     public static void onTotemPop(Entity entity) {
         try {
             MinecraftClient client = MinecraftClient.getInstance();
             if (client.player == null) return;
 
-            // Count pops within 40 block radius as requested
+            // Pops of every player within the totem range count (not only your own fights)
             double distSq = client.player.squaredDistanceTo(entity);
-            if (distSq > 40.0 * 40.0) return;
+            double totemRange = ModConfig.get().totemRange;
+            if (distSq > totemRange * totemRange) return;
 
             // Safety net: one totem can't pop twice within 0.3s (damage immunity is 0.5s), so ignore duplicates
             long nowMs = System.currentTimeMillis();
@@ -359,9 +382,9 @@ public class CombatTracker {
                 }
             }
 
-            if (config.effectsEnabled && config.totemPop.enabled) {
+            if (config.effectsEnabled && config.totemPop.enabled && hitByYouRecently(entity)) {
                 // Visual only: Minecraft already plays the totem sound itself
-                EffectManager.spawnEffect(config.totemPop, entity);
+                EffectManager.spawnEffect(config.totemPop, entity, config.totemRange);
             }
         } catch (Throwable t) {
             t.printStackTrace();
@@ -388,7 +411,7 @@ public class CombatTracker {
 
             // Mob deaths only count when "effects on mobs" is on (PvP focus: players always count)
             boolean countsAsKill = entity instanceof PlayerEntity || config.onMobs;
-            if (countsAsKill && config.effectsEnabled && config.kill.enabled) {
+            if (countsAsKill && config.effectsEnabled && config.kill.enabled && hitByYouRecently(entity)) {
                 // Visual only: no extra sound (the optional death sound is a separate setting)
                 EffectManager.spawnEffect(config.kill, entity);
             }

@@ -27,7 +27,12 @@ public class EffectManager {
         return new Vec3d(entity.getX(), entity.getEyeY(), entity.getZ());
     }
 
-    public static synchronized void spawnEffect(EffectConfig config, Entity target) {
+    public static void spawnEffect(EffectConfig config, Entity target) {
+        spawnEffect(config, target, ModConfig.get().range);
+    }
+
+    /** Same as above, but with its own maximum distance (the totem pop effect is shown further away). */
+    public static synchronized void spawnEffect(EffectConfig config, Entity target, double maxRange) {
         try {
             if (config == null || !config.enabled) return;
 
@@ -41,7 +46,7 @@ public class EffectManager {
                 if (target instanceof MobEntity && !modConfig.onMobs) return;
 
                 double distSq = client.player.squaredDistanceTo(target);
-                if (distSq > modConfig.range * modConfig.range) return;
+                if (distSq > maxRange * maxRange) return;
             }
 
             Vec3d pos = target != null ? getEntityPos(target).add(0, config.heightOffset, 0) : getEntityPos(client.player);

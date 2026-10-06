@@ -172,7 +172,7 @@ public class EffectEditScreen extends Screen {
                         ModConfig.save();
                     })
                     .bounds(lx, START_Y + ROW * row++, W, H).build(),
-                    "Mace only: needs a real smash (falling or elytra).\nAny weapon: the next hit after the shield break."));
+                    "Mace only: needs a real smash (a fall of more than 1.5 blocks).\nElytra: glide to the target, put the chestplate back on, then hit.\nAny weapon: the next hit after the shield break."));
             this.addRenderableWidget(tip(Button.builder(onOff("Ring with flash", modConfig.ringWithFlash), btn -> {
                         modConfig.ringWithFlash = !modConfig.ringWithFlash;
                         btn.setMessage(onOff("Ring with flash", modConfig.ringWithFlash));
