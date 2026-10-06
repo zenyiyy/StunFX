@@ -2,14 +2,16 @@
 
 Client-side mace PvP effects for Fabric: a **Black Flash** on stunslams, a combo counter, shockwave rings on mace smashes, a totem pop counter and a death sound. Everything is configurable in one compact in-game screen.
 
+Stun FX only adds visual and audio effects on your own screen. It does not change combat or hits, and it sends nothing to servers.
+
 Download: [Modrinth](https://modrinth.com/mod/stunfx)
 
 ## Features
 
-- **Black Flash on stunslams** (Jujutsu Kaisen style): break a shield, then land the follow-up hit within 0.7 seconds. Choose whether only a real mace smash counts (a fall of more than 1.5 blocks; with an elytra: glide to the target, put the chestplate back on, then hit) or a hit with any weapon (axe included).
-- **Combo counter** ("BLACK FLASH x3"): counts stunslams in a row and only ends when you fail one or die. Time on screen and position are adjustable.
+- **Black Flash on stunslams** (Jujutsu Kaisen style): shows when a shield break is followed by a mace smash within 0.7 seconds. A smash follows the game's rule: a fall of more than 1.5 blocks, not while gliding. Optionally, a hit with any weapon after the shield break can count too.
+- **Combo counter** ("BLACK FLASH x3"): counts stunslams in a row and ends when one fails or you die. Time on screen and position are adjustable.
 - **Mace ring** on every real mace smash, with an option to show it together with the Black Flash.
-- **Totem pop effect**, **kill effect** and a **totem pop counter** with an optional pop sound.
+- **Totem pop effect** and **kill effect** for targets you hit, plus a **totem pop counter** for every player within 128 blocks, with an optional pop sound.
 - **Death sound** when a player dies (Unstable SMP style).
 - Five looks (Manga, Cursed Blue, Gold, Violet, Minimal), colours, size, duration and sound per effect. Drag and drop the counters where you want them.
 
@@ -17,7 +19,7 @@ Download: [Modrinth](https://modrinth.com/mod/stunfx)
 
 - Open settings: `Right Shift` or `/stunfx` (all keys can be rebound under Controls > Stun FX)
 - `/stunfx test` shows every effect, `/stunfx test stunslam|ring|totem|kill|sound` shows one
-- `/stunfx debug` shows above the hotbar why a stunslam did or did not trigger
+- `/stunfx debug` shows above the hotbar why an effect did or did not show
 - `/popcounter` toggles the counter, `/popcounter reset` clears it, `/deathsound` toggles the death sound
 
 ## Versions
@@ -49,8 +51,7 @@ The sound files (Black Flash and death sound) are not part of this repository. P
 
 ## Notes
 
-- Needs Fabric Loader and Fabric API. Works on 1.21.11, 1.21.4 and 26.2. Please report problems in the issues.
-- The mod only changes what you see and hear on your own screen. It sends nothing to servers.
+- Works on 1.21.11, 1.21.4 and 26.2. Please report problems in the issues.
 - Low impact on FPS.
 
 Fan-made. Not affiliated with or endorsed by Mojang, Microsoft or the creators of *Jujutsu Kaisen*.
